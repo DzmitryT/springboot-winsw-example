@@ -1,0 +1,179 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.example</groupId>
+    <artifactId>winsw</artifactId>
+    <version>1.0-SNAPSHOT</version>
+    <packaging>jar</packaging>
+
+    <name>winsw</name>
+    <url>http://maven.apache.org</url>
+
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <java.version>1.8</java.version>
+    </properties>
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>1.5.3.RELEASE</version>
+    </parent>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-tomcat</artifactId>
+        </dependency>
+
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+    <profiles>
+         <profile>
+            <!-- Profile for automatic prepare and deploy application service -->
+            <id>winsvc</id>
+            <properties>
+                <!-- Distribution paths -->
+                <dist.dir>${project.basedir}/dist</dist.dir>
+                <dist.svcdir>${dist.dir}/service</dist.svcdir> 
+                <build.bindir>${project.build.directory}/bin</build.bindir>                             
+                <!-- WinSW XML parameters -->
+                <winsvc.xml>${dist.svcdir}/${project.artifactId}.xml</winsvc.xml>
+                <winsvc.exe>${dist.svcdir}/${project.artifactId}.exe</winsvc.exe>
+                <winsvc.service.exe>java</winsvc.service.exe>              
+                <winsvc.service.jar>${project.artifactId}.jar</winsvc.service.jar>                
+                <winsvc.service.description>${project.artifactId} Windows Service</winsvc.service.description>     
+                <winsvc.service.log.mode>roll-by-time</winsvc.service.log.mode>    
+                <winsvc.service.log.settings><![CDATA[
+                            <pattern>dd-MM-yyyy</pattern>
+                            <keepFiles>3</keepFiles>
+                            <autoRollAtTime>00:00:00</autoRollAtTime>]]>
+                </winsvc.service.log.settings>                  
+            </properties>
+            <build>
+                <plugins>
+                    <plugin>
+                        <!--  Download winsw-VERSION.exe  and put to the target/bin/winsw.exe -->
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-dependency-plugin</artifactId>
+                        <executions>                           
+                            <execution>
+                                <id>copy-dependency</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>copy</goal>
+                                </goals>
+                                <configuration>
+                                    <artifactItems>
+                                        <artifactItem>
+                                            <groupId>com.sun.winsw</groupId>
+                                            <artifactId>winsw</artifactId>
+                                            <classifier>bin</classifier>
+                                            <version>2.1.2</version>
+                                            <type>exe</type>
+                                            <overWrite>true</overWrite>
+                                            <outputDirectory>${build.bindir}</outputDirectory>
+                                            <destFileName>winsw.exe</destFileName>
+                                        </artifactItem>
+                                    </artifactItems>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                    <!-- Save settings to the winsw.xml config file -->   
+                        <groupId>ru.yaal.maven</groupId>
+                        <artifactId>write-text-files-maven-plugin</artifactId>
+                        <version>1.0</version>
+                        <configuration>
+                            <charset>UTF-8</charset>
+                            <files>
+                                <file>
+                                    <path>${build.bindir}/winsw.xml</path>
+                                    <lines>
+                                        <line><![CDATA[<?xml version="1.0" encoding="UTF-8"?>
+<service>
+    <id>${project.artifactId}</id>
+    <name>${project.artifactId}</name>
+    <description>${winsvc.service.description}</description>                                           
+    <executable>${winsvc.service.exe}</executable>   
+    <arguments>-jar "%BASE%\..\${winsvc.service.jar}"</arguments>
+    <workingdirectory>%BASE%\..\</workingdirectory>
+    <logpath>%BASE%\..\logs</logpath>
+    <log mode="${winsvc.service.log.mode}">
+            ${winsvc.service.log.settings}
+    </log>
+</service>]]>
+                                        </line>
+                                    </lines>
+                                </file>
+                            </files>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <id>write-text-files</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>write-text-files</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <!-- Simple copy from "target" to "dist" directory -->
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-antrun-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <!--  Also, we can use  "package" phase, 
+                                      but "install" is more corresponded to the Maven Build Lifecycle -->
+                                <phase>install</phase>
+                                <configuration>
+                                    <target>
+                                        <copy file="${build.bindir}/winsw.exe" tofile="${winsvc.exe}" />
+                                        <copy file="${build.bindir}/winsw.xml" tofile="${winsvc.xml}" />
+                                        <copy file="${project.build.directory}/${project.artifactId}-${project.version}.jar" tofile="${dist.dir}/${winsvc.service.jar}" />
+                                    </target>
+                                </configuration>
+                                <goals>
+                                    <goal>run</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+            <dependencies>
+                <dependency>
+                    <groupId>com.sun.winsw</groupId>
+                    <artifactId>winsw</artifactId>
+                    <classifier>bin</classifier>
+                    <version>2.1.2</version>
+                    <type>exe</type>
+                </dependency>
+            </dependencies>
+            <repositories>
+                <repository>
+                    <id>jenkins</id>
+                    <name>Jenkins Repository</name>
+                    <url>http://repo.jenkins-ci.org/releases</url>
+                    <snapshots>
+                        <enabled>false</enabled>
+                    </snapshots>
+                </repository>
+            </repositories>          
+        </profile>
+    </profiles>
+</project>
